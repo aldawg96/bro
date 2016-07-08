@@ -692,14 +692,28 @@ void TCP_Analyzer::UpdateInactiveState(double t,
 
 			if ( peer->state == TCP_ENDPOINT_SYN_SENT )
 				peer->SetState(TCP_ENDPOINT_ESTABLISHED);
+
 			else if ( peer->state == TCP_ENDPOINT_INACTIVE )
 				{
-				// If we were to ignore SYNs and
-				// only instantiate state on SYN
-				// acks, then we'd do:
-				//    peer->SetState(TCP_ENDPOINT_ESTABLISHED);
-				// here.
-				Weird("unsolicited_SYN_response");
+				// A responder-side SYN-ACK while we haven't
+				// seen anything yet from the originator. As
+				// we most likely just lost that SYN, we go
+				// ahead and establish the connection.
+				if ( flags.ACK() && ! (first_packet_seen & ORIG) )
+					{
+					peer->SetState(TCP_ENDPOINT_ESTABLISHED);
+
+					// Pretend we saw a packet to avoid
+					// the connection being flagged as
+					// partial. This allows downstream
+					// analyzers to parse the connection
+					// even if nornmally they can't
+					// handle partial data.
+					first_packet_seen |= ORIG;
+					}
+
+				else
+					Weird("unsolicited_SYN_response");
 				}
 
 			endpoint->SetState(TCP_ENDPOINT_ESTABLISHED);
